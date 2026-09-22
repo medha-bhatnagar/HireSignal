@@ -36,8 +36,14 @@ FRAMEWORK_KEYWORDS = {
     "redis": "Redis", "sqlalchemy": "SQLAlchemy", "mysql": "MySQL",
 }
 
-async def merged_percentage(username, repo):
-    info = await pull_info(username, repo)
+# NOTE: every function below now takes an optional `token` kwarg, threaded
+# straight through to the services.py call(s) it makes. Pass the requesting
+# user's personal GitHub token (from request.github_token, set by
+# clients.decorators.optional_jwt) so authenticated calls use that user's
+# own rate limit instead of the shared GITHUB_TOKEN fallback.
+
+async def merged_percentage(username, repo, token=None):
+    info = await pull_info(username, repo, token=token)
     if not info:
         return "N/A"
     total_prs = len(info)
@@ -47,36 +53,36 @@ async def merged_percentage(username, repo):
     )
 #print(merged_percentage('python', 'cpython')) 
 
-async def profile_pic(username):
-    info = await request_user(username)
+async def profile_pic(username, token=None):
+    info = await request_user(username, token=token)
     if info:
         profile_url = info.get("html_url") + ".png"
     return profile_url
 
-async def forks(username, repo):# NOT SURE ABOUT USE
-    info = await request_repo_info(username, repo)
+async def forks(username, repo, token=None):# NOT SURE ABOUT USE
+    info = await request_repo_info(username, repo, token=token)
     return info.get('forks')
 
-async def creation_date(username, repo):
-    info = await request_repo_info(username, repo)
+async def creation_date(username, repo, token=None):
+    info = await request_repo_info(username, repo, token=token)
     return info.get('created_at')
     #coordinated universal time, may have to convert to date time
-async def stars(username, repo):
-    info = await request_repo_info(username, repo)
+async def stars(username, repo, token=None):
+    info = await request_repo_info(username, repo, token=token)
     return info.get('stargazers_count')
 
-async def last_updated(username, repo): # NOT SURE ABOUT USE
-    info = await request_repo_info(username, repo)
+async def last_updated(username, repo, token=None): # NOT SURE ABOUT USE
+    info = await request_repo_info(username, repo, token=token)
     return info.get('updated_at')
     #coordinated universal time, may have to convert to date time
 
-async def total_issues_opened(username, repo):
-    issue_data = await issues(username, repo)
+async def total_issues_opened(username, repo, token=None):
+    issue_data = await issues(username, repo, token=token)
     return len(issue_data)
 
 
-async def open_issues(username, repo):
-    issue_data = await issues(username, repo)
+async def open_issues(username, repo, token=None):
+    issue_data = await issues(username, repo, token=token)
     return sum(
         1
         for issue in issue_data
@@ -84,16 +90,16 @@ async def open_issues(username, repo):
     )
 
 
-async def closed_issues(username, repo):
-    issue_data = await issues(username, repo)
+async def closed_issues(username, repo, token=None):
+    issue_data = await issues(username, repo, token=token)
     return sum(
         1
         for issue in issue_data
         if issue["state"] == "closed"
     )
 
-async def issue_close_rate(username, repo):
-    issue_data = await issues(username, repo)
+async def issue_close_rate(username, repo, token=None):
+    issue_data = await issues(username, repo, token=token)
     total = len(issue_data)
     if total == 0:
         return 0
@@ -105,35 +111,35 @@ async def issue_close_rate(username, repo):
     term = f'{int((closed/total) * 100)}%'
     return term
 
-async def display_name(username):
-    info = await request_user(username)
+async def display_name(username, token=None):
+    info = await request_user(username, token=token)
     return info.get("name")
 
-async def display_username(username):
-    info = await request_user(username)
+async def display_username(username, token=None):
+    info = await request_user(username, token=token)
     return info.get("login")
 
-async def get_repo_name(username): 
+async def get_repo_name(username, token=None):
     repo_list = []
-    repos = await request_repo(username)
+    repos = await request_repo(username, token=token)
     for repo in repos:
             repo_list.append(repo['name'])
     return repo_list
 
-async def get_bio(username):
-    info = await request_user(username)
+async def get_bio(username, token=None):
+    info = await request_user(username, token=token)
     return info.get("bio")
 
-async def account_creation(username):
-    info = await request_user(username)
+async def account_creation(username, token=None):
+    info = await request_user(username, token=token)
     account_age = info.get("created_at")
     if account_age:
         account_age = datetime.fromisoformat(
         account_age.replace("Z", "+00:00"))
     return account_age
 
-async def top_languages(username):
-    repos = await request_repo(username)
+async def top_languages(username, token=None):
+    repos = await request_repo(username, token=token)
 
     language_totals = defaultdict(int)
 
@@ -141,7 +147,8 @@ async def top_languages(username):
     for repo in repos:
         repo_languages = await request_repo_languages(
             username,
-            repo["name"]
+            repo["name"],
+            token=token
         )
 
         for language, bytes_of_code in repo_languages.items():
@@ -185,16 +192,16 @@ async def top_languages(username):
 
     return top_three
 
-async def readme_decoded(username, repo):
-    data = await readme_encoded(username, repo)
+async def readme_decoded(username, repo, token=None):
+    data = await readme_encoded(username, repo, token=token)
     if data is None:
         return None
     encoded = data.get("content")
     text = base64.b64decode(encoded).decode("utf-8")
     return text
 
-async def profile_readme(username):
-    text = await readme_decoded(username, username)
+async def profile_readme(username, token=None):
+    text = await readme_decoded(username, username, token=token)
     if text is None:
         return None
     return text
@@ -210,15 +217,15 @@ def is_recent(repo, months=18):
     return pushed_date > cutoff
 
 
-async def get_recent_repos(username, months=18):
-    repos = await request_repo(username)
+async def get_recent_repos(username, months=18, token=None):
+    repos = await request_repo(username, token=token)
     return [r for r in repos if is_recent(r, months)]
 
-async def detect_repo_stack(username, repo_name):
+async def detect_repo_stack(username, repo_name, token=None):
     #Detect infra + framework signals for a single repo.
     detected = set()
 
-    contents = await get_repo_contents(username, repo_name)
+    contents = await get_repo_contents(username, repo_name, token=token)
     filenames = {item["name"] for item in contents if item["type"] == "file"}
     folder_names = {item["name"] for item in contents if item["type"] == "dir"}
 
@@ -230,7 +237,7 @@ async def detect_repo_stack(username, repo_name):
     # dependency file detection + parse contents for framework keywords
     for filename in DEPENDENCY_FILES:
         if filename in filenames:
-            content = await get_file_content(username, repo_name, filename)
+            content = await get_file_content(username, repo_name, filename, token=token)
             if content:
                 content_lower = content.lower()
                 for keyword, label in FRAMEWORK_KEYWORDS.items():
@@ -239,13 +246,13 @@ async def detect_repo_stack(username, repo_name):
 
     return detected
 
-async def detect_tech_stack(username, months=18):
+async def detect_tech_stack(username, months=18, token=None):
     #Aggregate tech stack across a user's recently active repos
-    recent_repos = await get_recent_repos(username, months)
+    recent_repos = await get_recent_repos(username, months, token=token)
 
     full_stack = set()
     for repo in recent_repos:
-        repo_stack = await detect_repo_stack(username, repo["name"])
+        repo_stack = await detect_repo_stack(username, repo["name"], token=token)
         full_stack.update(repo_stack)
 
     return list(full_stack)

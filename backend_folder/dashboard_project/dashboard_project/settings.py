@@ -9,8 +9,11 @@ https://docs.djangoproject.com/en/6.0/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
-
+from dotenv import load_dotenv
+load_dotenv()
 from pathlib import Path
+from datetime import timedelta
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -27,6 +30,10 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
+# --- Custom user model (see accounts/models.py) ---
+# Must be set before the first migration touching auth is run.
+AUTH_USER_MODEL = "accounts.User"
+
 
 # Application definition
 
@@ -38,14 +45,15 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    "rest_framework_simplejwt",
     "accounts",
     "developers",
     "analysis",
     "ai",
     "jobs",
-    "reports",
     "cache",
-    "common"
+    "common",
+    "clients",
 ]
 
 MIDDLEWARE = [
@@ -124,3 +132,40 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = "static/"
+
+
+# --- Caching (see cache/utils.py) ---
+# Using Django's built-in database-backed cache since no Redis is running yet.
+# The interface (cache.get_or_set, TTLs, etc.) is identical to a Redis-backed
+# cache -- swapping the BACKEND/LOCATION here later is the only change needed
+# to move to Redis, nothing in cache/utils.py or the views has to change.
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "app_cache_table",
+    }
+}
+
+# --- GitHub OAuth (see accounts/views.py) ---
+GITHUB_CLIENT_ID = os.environ.get("GITHUB_CLIENT_ID", "")
+GITHUB_CLIENT_SECRET = os.environ.get("GITHUB_CLIENT_SECRET", "")
+# Fallback shared token used for anonymous requests / when a user has no
+# stored personal GitHub token (see developers/services.py).
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+
+# --- Field encryption (see common/fields.py) ---
+# Used to encrypt each user's personal GitHub access token at rest.
+# Generate one with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+FIELD_ENCRYPTION_KEY = os.environ.get("FIELD_ENCRYPTION_KEY", "")
+
+# --- JWT (see accounts/views.py, clients/decorators.py) ---
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=14),
+    "ROTATE_REFRESH_TOKENS": True,
+    "AUTH_HEADER_TYPES": ("Bearer",),
+}
+
+# --- Rate limiting (see common/ratelimit.py) ---
+RATE_LIMIT_ANONYMOUS_PER_HOUR = 10
+RATE_LIMIT_AUTHENTICATED_PER_HOUR = 60

@@ -8,6 +8,8 @@ class Profile(models.Model):
     bio = models.TextField(blank=True)
     account_age = models.DateTimeField(blank=True)
     tech_stack = models.JSONField(default=list, blank=True)
+    ai_summary = models.TextField(blank=True)
+    job_match = models.TextField(blank=True)
     #latest_repos
     
 class MetricData(models.Model):
