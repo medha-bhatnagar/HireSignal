@@ -1,3 +1,7 @@
+
+
+https://github.com/user-attachments/assets/136c03d0-3263-45e3-bee7-51ed94b54e34
+
 # HireSignal
 
 A Chrome extension that generates an AI summary of any GitHub profile and scores how well that
